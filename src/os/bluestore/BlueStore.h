@@ -166,13 +166,11 @@ public:
     int trim(int max=-1);
   };
 
-  struct Collection : public CollectionImpl {
+  struct Collection {
     BlueStore *store;
     coll_t cid;
     bluestore_cnode_t cnode;
     RWLock lock;
-
-    bool exists;
 
     // cache onodes on a per-collection basis to avoid lock
     // contention.
@@ -182,10 +180,6 @@ public:
 
     OnodeRef get_onode(const ghobject_t& oid, bool create);
     EnodeRef get_enode(uint32_t hash);
-
-    const coll_t &get_cid() override {
-      return cid;
-    }
 
     bool contains(const ghobject_t& oid) {
       if (cid.is_meta())
@@ -200,7 +194,7 @@ public:
 
     Collection(BlueStore *ns, coll_t c);
   };
-  typedef boost::intrusive_ptr<Collection> CollectionRef;
+  typedef ceph::shared_ptr<Collection> CollectionRef;
 
   class OmapIteratorImpl : public ObjectMap::ObjectMapIteratorImpl {
     CollectionRef c;
@@ -625,17 +619,11 @@ public:
   int statfs(struct statfs *buf);
 
   bool exists(coll_t cid, const ghobject_t& oid);
-  bool exists(CollectionHandle &c, const ghobject_t& oid);
   int stat(
     coll_t cid,
     const ghobject_t& oid,
     struct stat *st,
-    bool allow_eio = false) override;
-  int stat(
-    CollectionHandle &c,
-    const ghobject_t& oid,
-    struct stat *st,
-    bool allow_eio = false) override;
+    bool allow_eio = false); // struct stat?
   int read(
     coll_t cid,
     const ghobject_t& oid,
@@ -643,15 +631,7 @@ public:
     size_t len,
     bufferlist& bl,
     uint32_t op_flags = 0,
-    bool allow_eio = false) override;
-  int read(
-    CollectionHandle &c,
-    const ghobject_t& oid,
-    uint64_t offset,
-    size_t len,
-    bufferlist& bl,
-    uint32_t op_flags = 0,
-    bool allow_eio = false) override;
+    bool allow_eio = false);
   int _do_read(
     OnodeRef o,
     uint64_t offset,
@@ -659,48 +639,25 @@ public:
     bufferlist& bl,
     uint32_t op_flags = 0);
 
-  int fiemap(coll_t cid, const ghobject_t& oid,
-	     uint64_t offset, size_t len, bufferlist& bl) override;
-  int fiemap(CollectionHandle &c, const ghobject_t& oid,
-	     uint64_t offset, size_t len, bufferlist& bl) override;
+  int fiemap(coll_t cid, const ghobject_t& oid, uint64_t offset, size_t len, bufferlist& bl);
+  int getattr(coll_t cid, const ghobject_t& oid, const char *name, bufferptr& value);
+  int getattrs(coll_t cid, const ghobject_t& oid, map<string,bufferptr>& aset);
 
-  int getattr(coll_t cid, const ghobject_t& oid, const char *name,
-	      bufferptr& value) override;
-  int getattr(CollectionHandle &c, const ghobject_t& oid, const char *name,
-	      bufferptr& value) override;
-
-  int getattrs(coll_t cid, const ghobject_t& oid,
-	       map<string,bufferptr>& aset) override;
-  int getattrs(CollectionHandle &c, const ghobject_t& oid,
-	       map<string,bufferptr>& aset) override;
-
-  int list_collections(vector<coll_t>& ls) override;
-
-  CollectionHandle open_collection(const coll_t &c) override;
-
+  int list_collections(vector<coll_t>& ls);
   bool collection_exists(coll_t c);
   bool collection_empty(coll_t c);
   int collection_bits(coll_t c);
 
   int collection_list(coll_t cid, ghobject_t start, ghobject_t end,
 		      bool sort_bitwise, int max,
-		      vector<ghobject_t> *ls, ghobject_t *next) override;
-  int collection_list(CollectionHandle &c, ghobject_t start, ghobject_t end,
-		      bool sort_bitwise, int max,
-		      vector<ghobject_t> *ls, ghobject_t *next) override;
+		      vector<ghobject_t> *ls, ghobject_t *next);
 
   int omap_get(
     coll_t cid,                ///< [in] Collection containing oid
     const ghobject_t &oid,   ///< [in] Object containing omap
     bufferlist *header,      ///< [out] omap header
     map<string, bufferlist> *out /// < [out] Key to value map
-    ) override;
-  int omap_get(
-    CollectionHandle &c,     ///< [in] Collection containing oid
-    const ghobject_t &oid,   ///< [in] Object containing omap
-    bufferlist *header,      ///< [out] omap header
-    map<string, bufferlist> *out /// < [out] Key to value map
-    ) override;
+    );
 
   /// Get omap header
   int omap_get_header(
@@ -708,22 +665,11 @@ public:
     const ghobject_t &oid,   ///< [in] Object containing omap
     bufferlist *header,      ///< [out] omap header
     bool allow_eio = false ///< [in] don't assert on eio
-    ) override;
-  int omap_get_header(
-    CollectionHandle &c,                ///< [in] Collection containing oid
-    const ghobject_t &oid,   ///< [in] Object containing omap
-    bufferlist *header,      ///< [out] omap header
-    bool allow_eio = false ///< [in] don't assert on eio
-    ) override;
+    );
 
   /// Get keys defined on oid
   int omap_get_keys(
     coll_t cid,              ///< [in] Collection containing oid
-    const ghobject_t &oid, ///< [in] Object containing omap
-    set<string> *keys      ///< [out] Keys defined on oid
-    ) override;
-  int omap_get_keys(
-    CollectionHandle &c,              ///< [in] Collection containing oid
     const ghobject_t &oid, ///< [in] Object containing omap
     set<string> *keys      ///< [out] Keys defined on oid
     );
@@ -734,13 +680,7 @@ public:
     const ghobject_t &oid,       ///< [in] Object containing omap
     const set<string> &keys,     ///< [in] Keys to get
     map<string, bufferlist> *out ///< [out] Returned keys and values
-    ) override;
-  int omap_get_values(
-    CollectionHandle &c,         ///< [in] Collection containing oid
-    const ghobject_t &oid,       ///< [in] Object containing omap
-    const set<string> &keys,     ///< [in] Keys to get
-    map<string, bufferlist> *out ///< [out] Returned keys and values
-    ) override;
+    );
 
   /// Filters keys into out which are defined on oid
   int omap_check_keys(
@@ -748,22 +688,12 @@ public:
     const ghobject_t &oid,   ///< [in] Object containing omap
     const set<string> &keys, ///< [in] Keys to check
     set<string> *out         ///< [out] Subset of keys defined on oid
-    ) override;
-  int omap_check_keys(
-    CollectionHandle &c,                ///< [in] Collection containing oid
-    const ghobject_t &oid,   ///< [in] Object containing omap
-    const set<string> &keys, ///< [in] Keys to check
-    set<string> *out         ///< [out] Subset of keys defined on oid
-    ) override;
+    );
 
   ObjectMap::ObjectMapIterator get_omap_iterator(
     coll_t cid,              ///< [in] collection
     const ghobject_t &oid  ///< [in] object
-    ) override;
-  ObjectMap::ObjectMapIterator get_omap_iterator(
-    CollectionHandle &c,   ///< [in] collection
-    const ghobject_t &oid  ///< [in] object
-    ) override;
+    );
 
   void set_fsid(uuid_d u) {
     fsid = u;

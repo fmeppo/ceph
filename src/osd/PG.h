@@ -298,7 +298,6 @@ public:
   void upgrade(ObjectStore *store);
 
   const coll_t coll;
-  ObjectStore::CollectionHandle ch;
   PGLog  pg_log;
   static string get_info_key(spg_t pgid) {
     return stringify(pgid) + "_info";
@@ -531,7 +530,6 @@ public:
     map<int, map<spg_t, pg_query_t> > *query_map;
     map<int, vector<pair<pg_notify_t, pg_interval_map_t> > > *info_map;
     map<int, vector<pair<pg_notify_t, pg_interval_map_t> > > *notify_list;
-    set<PGRef> created_pgs;
     C_Contexts *on_applied;
     C_Contexts *on_safe;
     ObjectStore::Transaction *transaction;
